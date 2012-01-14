@@ -25,7 +25,7 @@ import (
 
 const (
 	VERSION = "0.1"
-	TU_URL = "http://www.archlinux.org/trustedusers/"
+	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
 )
 
@@ -36,20 +36,20 @@ var (
 // Used when parsing svn log xml
 type LogEntry struct {
 	Revision string `xml:"attr"`
-	Author string
-	Date  string
-	Msg string
+	Author   string
+	Date     string
+	Msg      string
 }
 
 // Used when parsing svn log xml
 type Log struct {
-	XMLName xml.Name `xml:"log"`
+	XMLName  xml.Name `xml:"log"`
 	LogEntry []LogEntry
 }
 
 // Use the "svn log --xml" command to fetch log entries
 func getSvnLog(entries int) (Log, os.Error) {
-	svnlog := Log{LogEntry:nil}
+	svnlog := Log{LogEntry: nil}
 	var cmd *exec.Cmd
 	if entries == -1 {
 		cmd = exec.Command("/usr/bin/svn", "log", "--xml")
@@ -109,10 +109,10 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 		}
 		bval, _ = tokenizer.TagName()
 		tagname := bytes.NewBuffer(bval).String()
-		if (tagname == "a") {
+		if tagname == "a" {
 			// Find Name
 			text := ""
-			for (text != "Name:") {
+			for text != "Name:" {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
@@ -126,7 +126,7 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 			name := bytes.NewBuffer(bval).String()
 			// Find Alias
 			text = ""
-			for (text != "Alias:") {
+			for text != "Alias:" {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
@@ -139,17 +139,17 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 			bval = tokenizer.Text()
 			alias := bytes.NewBuffer(bval).String()
 			// Is there a space in the alias?
-			if (strings.Index(alias, " ") != -1) {
+			if strings.Index(alias, " ") != -1 {
 				// Split into two substrings, then only use the first part
 				alias = strings.SplitN(alias, " ", 2)[0]
 			}
-			if (strings.ToLower(alias) != strings.ToLower(nick)) {
+			if strings.ToLower(alias) != strings.ToLower(nick) {
 				// Skipping this person if alias and nick doesn't match
 				continue
 			}
 			// Find Email
 			text = ""
-			for (text != "Email:") {
+			for text != "Email:" {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
@@ -187,7 +187,7 @@ func nickToNameAndEmail(nick string) string {
 	nameEmail, err := nickToNameAndEmailWithUrl(nick, TU_URL)
 	if err != nil {
 		// Try searching on the developer webpage
-		nameEmail, err =  nickToNameAndEmailWithUrl(nick, DEV_URL)
+		nameEmail, err = nickToNameAndEmailWithUrl(nick, DEV_URL)
 		if err != nil {
 			// Could not get name and email from nick
 			nickCache[nick] = nick
