@@ -190,8 +190,8 @@ func nickToNameAndEmail(nick string) string {
 		nameEmail, err =  nickToNameAndEmailWithUrl(nick, DEV_URL)
 		if err != nil {
 			// Could not get name and email from nick
-			nickCache[nick] = ""
-			return ""
+			nickCache[nick] = nick
+			return nick
 		}
 	}
 	nickCache[nick] = nameEmail
