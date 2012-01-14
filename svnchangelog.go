@@ -200,6 +200,7 @@ func nickToNameAndEmail(nick string) string {
 
 // Output the N last svn log entries in the style of a ChangeLog
 func outputLog(n int) {
+	leadStar := "    * "
 	svnlog, err := getSvnLog(n)
 	if err != nil {
 		log.Println("Could not get svn log")
@@ -208,7 +209,12 @@ func outputLog(n int) {
 	for _, logentry := range svnlog.LogEntry {
 		date = prettyDate(logentry.Date)
 		name = nickToNameAndEmail(logentry.Author)
-		msg = "    * " + strings.TrimSpace(logentry.Msg)
+		msg = strings.TrimSpace(logentry.Msg)
+		if msg == "" {
+			// Skip empty messages
+			continue
+		}
+		msg = leadStar + msg
 		// If there are newlines in the msg, indent them
 		msg = strings.Replace(msg, "\n", "\n      ", -1)
 		// Only output a header if it's not the same date again
