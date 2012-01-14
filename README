@@ -1,0 +1,2 @@
+A utility for generating a ChangeLog based on the last N elements in
+the svn log.
