@@ -52,10 +52,10 @@ func getSvnLog(entries int) (Log, os.Error) {
 	svnlog := Log{LogEntry: nil}
 	var cmd *exec.Cmd
 	if entries == -1 {
-		cmd = exec.Command("/usr/bin/svn", "log", "--xml")
+		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0")
 	} else {
 		entriesText := fmt.Sprintf("%v", entries)
-		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-l", entriesText)
+		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0", "-l", entriesText)
 	}
 	b, err := cmd.Output()
 	if err != nil {
@@ -93,6 +93,45 @@ func Skip(tokenizer *html.Tokenizer, n int) bool {
 		}
 	}
 	return true
+}
+
+func mapLetters(letter int) int {
+	if ((letter >= 'A') && (letter <= 'Z')) || ((letter >= 'a') && (letter <= 'z')) {
+		return letter
+	}
+	switch letter {
+	case 'ø', 'ö':
+		return 'o'
+	case 'Р', 'ð':
+		return 'r'
+	case 'ä', 'Á', 'á':
+		return 'a'
+	case 'é':
+		return 'e'
+	default:
+		return '_'
+	}
+	return letter
+}
+
+// Generates a nick from the name
+func generateNick(name string) string {
+	if strings.Index(name, " ") == -1 {
+		return name
+	}
+	var names []string
+	// If the english-friendly name is in parenthesis
+	if (strings.Index(name, "(") != -1) && (strings.Index(name, ")") != -1) {
+		a := strings.Index(name, "(")
+		b := strings.LastIndex(name, ")")
+		centerpart := name[a+1 : b]
+		names = strings.SplitN(centerpart, " ", -1)
+	} else {
+		names = strings.SplitN(name, " ", -1)
+	}
+	firstname, lastname := names[0], names[len(names)-1]
+	nick := strings.Replace(strings.ToLower(strings.Map(mapLetters, string(firstname[0])+lastname)), "_", "", -1)
+	return nick
 }
 
 // Find the name and email based on a nick name and an URL to an
@@ -143,7 +182,7 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 				// Split into two substrings, then only use the first part
 				alias = strings.SplitN(alias, " ", 2)[0]
 			}
-			if strings.ToLower(alias) != strings.ToLower(nick) {
+			if (strings.ToLower(alias) != strings.ToLower(nick)) && (nick != generateNick(name)) {
 				// Skipping this person if alias and nick doesn't match
 				continue
 			}
