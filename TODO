@@ -1,3 +1,10 @@
 == TODO ==
 
-* Figure out nicks based on first letter of first name + ascii version of last name.
+* Reverse the order of log entries under the headline of a certain date.
+* Plugin system for supporting other version control systems (Lua?)
+* Rename the application to "whatsnew" or "vcschangelog".
+
+
+== DONE ==
+
+* Figure out nicks based on first letter of first name + ascii version of last name
