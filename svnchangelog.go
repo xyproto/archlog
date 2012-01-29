@@ -28,6 +28,7 @@ const (
 	VERSION = "0.2"
 	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
+	FEL_URL = "http://www.archlinux.org/fellows/"
 	PKG_URL = "http://www.archlinux.org/packages/"
 )
 
@@ -229,14 +230,14 @@ func nickToNameFromListBox(nick string, url string) (string, os.Error) {
 		tagname := bytes.NewBuffer(bval).String()
 		if tagname == "option" {
 			// Find Nick			
-			_, bval, _ = tokenizer.TagAttr()	
+			_, bval, _ = tokenizer.TagAttr()
 			foundnick := bytes.NewBuffer(bval).String()
 			if nick != foundnick {
 				continue
 			}
 			if !Skip(tokenizer, 1) {
 				return "", tokerror
-			}			
+			}
 			bval = tokenizer.Text()
 			name := bytes.NewBuffer(bval).String()
 			return name, nil
@@ -334,9 +335,16 @@ func nickToNameAndEmail(nick string) string {
 		// Found it
 		nickCache[nick] = nameEmail
 		return nameEmail
-	}	
+	}
 	// Try searching on the developer webpage
 	nameEmail, err = nickToNameAndEmailWithUrl(nick, DEV_URL)
+	if err == nil {
+		// Found it
+		nickCache[nick] = nameEmail
+		return nameEmail
+	}
+	// Try searching on the fellows webpage
+	nameEmail, err = nickToNameAndEmailWithUrl(nick, FEL_URL)
 	if err == nil {
 		// Found it
 		nickCache[nick] = nameEmail
@@ -355,14 +363,14 @@ func nickToNameAndEmail(nick string) string {
 			email, err = nameToEmailWithUrl(name, DEV_URL)
 			if err == nil {
 				foundEmail = true
-			}		
+			}
 		}
 		if foundEmail {
 			name = fmt.Sprintf("%s <%s>", name, email)
-		}		
+		}
 		nickCache[nick] = name
 		return name
-	}	
+	}
 	// Could not get name and email from nick	
 	nickCache[nick] = nick
 	return nick
@@ -400,7 +408,7 @@ func outputLog(n int) {
 			msg = strings.Replace(msg, "\n\n", "\n", 1)
 		}
 		// If there are newlines in the msg, indent them
-		msg = strings.Replace(msg, "\n", "\n      ", -1)	
+		msg = strings.Replace(msg, "\n", "\n      ", -1)
 		// Only output a header if it's not the same date again
 		if date != prevdate {
 			// Output gathered messages
@@ -410,7 +418,7 @@ func outputLog(n int) {
 					if !first {
 						fmt.Println()
 					}
-				}			
+				}
 				// Output header
 				fmt.Printf("%s %s\n", date, name)
 				// Output in reverse order
@@ -420,7 +428,7 @@ func outputLog(n int) {
 				}
 				// Clear the gathered messages
 				msgitems = []string{}
-				first = false				
+				first = false
 			}
 		}
 		// Gather message
