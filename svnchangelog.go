@@ -393,11 +393,12 @@ func outputLog(n int) {
 		fmt.Fprintln(os.Stderr, "Could not find a subversion repository here")
 		os.Exit(1)
 	}
-	var date, prevdate, name, msg string
+	var date, prevdate, name, prevname, msg, prevheader, header string
 	for _, logentry := range svnlog.LogEntry {
 		date = prettyDate(logentry.Date)
 		name = nickToNameAndEmail(logentry.Author)
 		msg = strings.TrimSpace(logentry.Msg)
+		header = fmt.Sprintf("%s %s", date, name)
 		if msg == "" {
 			// Skip empty messages
 			continue
@@ -409,13 +410,8 @@ func outputLog(n int) {
 		}
 		// If there are newlines in the msg, indent them
 		msg = strings.Replace(msg, "\n", "\n      ", -1)
-		// Only output a header if it's not the same date again
-		if date != prevdate {
-			if "" != prevdate {
-				if first {
-					fmt.Printf("%s %s\n", date, name)
-				}
-			}
+		// Only output a header if it's not the same date again, or not the same name
+		if (date != prevdate) || (name != prevname) {
 			// Output gathered messages
 			if len(msgitems) > 0 {
 				// Don't start with a blank line first time
@@ -425,7 +421,7 @@ func outputLog(n int) {
 					}
 				}
 				// Output header
-				fmt.Printf("%s %s\n", date, name)
+				fmt.Println(prevheader)
 				// Output in reverse order
 				last := len(msgitems) - 1
 				for i, _ := range msgitems {
@@ -439,6 +435,8 @@ func outputLog(n int) {
 		// Gather message
 		msgitems = append(msgitems, msg)
 		prevdate = date
+		prevname = name
+		prevheader = header
 	}
 	// Output any final gathered messages
 	if len(msgitems) > 0 {
