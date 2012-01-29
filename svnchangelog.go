@@ -343,13 +343,6 @@ func nickToNameAndEmail(nick string) string {
 		nickCache[nick] = nameEmail
 		return nameEmail
 	}
-	// Try searching on the fellows webpage
-	nameEmail, err = nickToNameAndEmailWithUrl(nick, FEL_URL)
-	if err == nil {
-		// Found it
-		nickCache[nick] = nameEmail
-		return nameEmail
-	}
 	// Try searching the package search webpage
 	name, err := nickToNameFromListBox(nick, PKG_URL)
 	if err == nil {
@@ -370,6 +363,13 @@ func nickToNameAndEmail(nick string) string {
 		}
 		nickCache[nick] = name
 		return name
+	}
+	// Try searching on the fellows webpage
+	nameEmail, err = nickToNameAndEmailWithUrl(nick, FEL_URL)
+	if err == nil {
+		// Found it
+		nickCache[nick] = nameEmail
+		return nameEmail
 	}
 	// Could not get name and email from nick	
 	nickCache[nick] = nick
@@ -411,6 +411,11 @@ func outputLog(n int) {
 		msg = strings.Replace(msg, "\n", "\n      ", -1)
 		// Only output a header if it's not the same date again
 		if date != prevdate {
+			if "" != prevdate {
+				if first {
+					fmt.Printf("%s %s\n", date, name)
+				}
+			}
 			// Output gathered messages
 			if len(msgitems) > 0 {
 				// Don't start with a blank line first time
