@@ -1,10 +1,9 @@
 == TODO ==
 
-* Reverse the order of log entries under the headline of a certain date.
-* Plugin system for supporting other version control systems (Lua?)
-* Rename the application to "whatsnew" or "vcschangelog".
-
+* A filename can be given with -f (or a filename without -f and -n and -10 for the number)
 
 == DONE ==
 
+* If a bullet point is one line, then a blank line, then a line again, remove the blank line
+* Reverse the order of log entries under the headline of a certain date.
 * Figure out nicks based on first letter of first name + ascii version of last name

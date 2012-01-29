@@ -4,6 +4,7 @@
  * Alexander Rødseth <rodseth@gmail.com>
  *
  * 2012-01-14
+ * 2012-01-29
  */
 
 package main
@@ -24,9 +25,10 @@ import (
 )
 
 const (
-	VERSION = "0.1"
+	VERSION = "0.2"
 	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
+	PKG_URL = "http://www.archlinux.org/packages/"
 )
 
 var (
@@ -59,7 +61,7 @@ func getSvnLog(entries int) (Log, os.Error) {
 	}
 	b, err := cmd.Output()
 	if err != nil {
-		log.Println("Could not run svn log")
+		// Return an error
 		return svnlog, err
 	}
 	buffer := bytes.NewBuffer(b)
@@ -142,8 +144,7 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
 	for {
-		toktype := tokenizer.Next()
-		if toktype == html.ErrorToken {
+		if !Skip(tokenizer, 1) {
 			return "", tokerror
 		}
 		bval, _ = tokenizer.TagName()
@@ -213,6 +214,111 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 	return "", tokerror
 }
 
+
+// Find the name from an ArchLinux related list of people and nicks
+func nickToNameFromListBox(nick string, url string) (string, os.Error) {
+	var bval []byte
+	tokerror := os.NewError("Out of tokens")
+	tokenizer, body := getWebPageTokenizer(url)
+	defer body.Close()
+	for {
+		if !Skip(tokenizer, 1) {
+			return "", tokerror
+		}
+		bval, _ = tokenizer.TagName()
+		tagname := bytes.NewBuffer(bval).String()
+		if tagname == "option" {
+			// Find Nick			
+			_, bval, _ = tokenizer.TagAttr()	
+			foundnick := bytes.NewBuffer(bval).String()
+			if nick != foundnick {
+				continue
+			}
+			if !Skip(tokenizer, 1) {
+				return "", tokerror
+			}			
+			bval = tokenizer.Text()
+			name := bytes.NewBuffer(bval).String()
+			return name, nil
+		}
+	}
+	return "", tokerror
+}
+
+// Find the email based on a name and an URL to an
+// ArchLinux related list of people, formatted in a particular way.
+func nameToEmailWithUrl(fullname string, url string) (string, os.Error) {
+	var bval []byte
+	tokerror := os.NewError("Out of tokens")
+	tokenizer, body := getWebPageTokenizer(url)
+	defer body.Close()
+	for {
+		if !Skip(tokenizer, 1) {
+			return "", tokerror
+		}
+		bval, _ = tokenizer.TagName()
+		tagname := bytes.NewBuffer(bval).String()
+		if tagname == "a" {
+			// Find Name
+			text := ""
+			for text != "Name:" {
+				if !Skip(tokenizer, 1) {
+					return "", tokerror
+				}
+				bval = tokenizer.Text()
+				text = bytes.NewBuffer(bval).String()
+			}
+			if !Skip(tokenizer, 4) {
+				return "", tokerror
+			}
+			bval = tokenizer.Text()
+			name := bytes.NewBuffer(bval).String()
+			// Check if this is the one we're looking for or skip
+			if (strings.ToLower(name) != strings.ToLower(fullname)) {
+				// Skipping this person if names doesn't match
+				continue
+			}
+			// Find Alias
+			text = ""
+			for text != "Alias:" {
+				if !Skip(tokenizer, 1) {
+					return "", tokerror
+				}
+				bval = tokenizer.Text()
+				text = bytes.NewBuffer(bval).String()
+			}
+			if !Skip(tokenizer, 4) {
+				return "", tokerror
+			}
+			bval = tokenizer.Text()
+			//alias := bytes.NewBuffer(bval).String()
+			// Find Email
+			text = ""
+			for text != "Email:" {
+				if !Skip(tokenizer, 1) {
+					return "", tokerror
+				}
+				bval = tokenizer.Text()
+				text = bytes.NewBuffer(bval).String()
+			}
+			if !Skip(tokenizer, 4) {
+				return "", tokerror
+			}
+			bval = tokenizer.Text()
+			email := bytes.NewBuffer(bval).String()
+			// If there's no "@" in the email, replace the first "." with "@"
+			if strings.Index(email, "@") == -1 {
+				if strings.Count(email, ".") > 1 {
+					email = strings.Replace(email, ".", "@", 1)
+				}
+			}
+			// Return the email and no error
+			return email, nil
+		}
+	}
+	return "", tokerror
+}
+
 func nickToNameAndEmail(nick string) string {
 	if nickCache == nil {
 		nickCache = make(map[string]string)
@@ -224,25 +330,60 @@ func nickToNameAndEmail(nick string) string {
 	}
 	// Try searching on the trusted user webpage
 	nameEmail, err := nickToNameAndEmailWithUrl(nick, TU_URL)
-	if err != nil {
-		// Try searching on the developer webpage
-		nameEmail, err = nickToNameAndEmailWithUrl(nick, DEV_URL)
-		if err != nil {
-			// Could not get name and email from nick
-			nickCache[nick] = nick
-			return nick
-		}
+	if err == nil {
+		// Found it
+		nickCache[nick] = nameEmail
+		return nameEmail
+	}	
+	// Try searching on the developer webpage
+	nameEmail, err = nickToNameAndEmailWithUrl(nick, DEV_URL)
+	if err == nil {
+		// Found it
+		nickCache[nick] = nameEmail
+		return nameEmail
 	}
-	nickCache[nick] = nameEmail
-	return nameEmail
+	// Try searching the package search webpage
+	name, err := nickToNameFromListBox(nick, PKG_URL)
+	if err == nil {
+		// Found it, try to find the mail too
+		var foundEmail bool = false
+		var email string
+		email, err = nameToEmailWithUrl(name, TU_URL)
+		if err == nil {
+			foundEmail = true
+		} else {
+			email, err = nameToEmailWithUrl(name, DEV_URL)
+			if err == nil {
+				foundEmail = true
+			}		
+		}
+		if foundEmail {
+			name = fmt.Sprintf("%s <%s>", name, email)
+		}		
+		nickCache[nick] = name
+		return name
+	}	
+	// Could not get name and email from nick	
+	nickCache[nick] = nick
+	return nick
+}
+
+func abs(x int) int {
+	if x >= 0 {
+		return x
+	}
+	return -x
 }
 
 // Output the N last svn log entries in the style of a ChangeLog
 func outputLog(n int) {
+	first := true
+	msgitems := make([]string, 0, abs(n))
 	leadStar := "    * "
 	svnlog, err := getSvnLog(n)
 	if err != nil {
-		log.Println("Could not get svn log")
+		fmt.Fprintln(os.Stderr, "Could not find a subversion repository here")
+		os.Exit(1)
 	}
 	var date, prevdate, name, msg string
 	for _, logentry := range svnlog.LogEntry {
@@ -254,23 +395,45 @@ func outputLog(n int) {
 			continue
 		}
 		msg = leadStar + msg
+		// Where there is one blank line, remove it
+		if strings.Count(msg, "\n\n") == 1 {
+			msg = strings.Replace(msg, "\n\n", "\n", 1)
+		}
 		// If there are newlines in the msg, indent them
-		msg = strings.Replace(msg, "\n", "\n      ", -1)
+		msg = strings.Replace(msg, "\n", "\n      ", -1)	
 		// Only output a header if it's not the same date again
 		if date != prevdate {
-			// Don't start with a blank line first time
-			if "" != prevdate {
-				fmt.Println()
+			// Output gathered messages
+			if len(msgitems) > 0 {
+				// Don't start with a blank line first time
+				if "" != prevdate {
+					if !first {
+						fmt.Println()
+					}
+				}			
+				// Output header
+				fmt.Printf("%s %s\n", date, name)
+				// Output in reverse order
+				last := len(msgitems) - 1
+				for i, _ := range msgitems {
+					fmt.Println(msgitems[last - i])
+				}
+				// Clear the gathered messages
+				msgitems = []string{}
+				first = false				
 			}
-			// Output header
-			fmt.Printf("%s %s\n", date, name)
 		}
-		// Output message
-		fmt.Println(msg)
+		// Gather message
+		msgitems = append(msgitems, msg)
 		prevdate = date
 	}
-	// Output a last blank line, if we ever outputted anything
-	if "" != date {
+	// Output any final gathered messages
+	if len(msgitems) > 0 {
+		// Output in reverse order
+		last := len(msgitems) - 1
+		for i, _ := range msgitems {
+			fmt.Println(msgitems[last - i])
+		}
 		fmt.Println()
 	}
 }
@@ -282,6 +445,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Println()
 		fmt.Println("Generates a ChangeLog based on \"svn log\".")
+		fmt.Println("Tries to find names and e-mail addresses for Arch Linux related usernames")
 		fmt.Println()
 		fmt.Println("Syntax:")
 		fmt.Println("\tsvnchangelog [n]")
