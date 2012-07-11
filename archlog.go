@@ -10,18 +10,19 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"exec" // os/exec for newer versions of Go
 	"bytes"
-	"strings"
-	"os"
-	"xml"
-	"http"
+	"encoding/xml"
+	"errors" // os/exec for newer versions of Go
+	"flag"
+	"fmt"
 	"html"
 	"io"
-	"flag"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -51,7 +52,7 @@ type Log struct {
 }
 
 // Use the "svn log --xml" command to fetch log entries
-func getSvnLog(entries int) (Log, os.Error) {
+func getSvnLog(entries int) (Log, error) {
 	svnlog := Log{LogEntry: nil}
 	var cmd *exec.Cmd
 	if entries == -1 {
@@ -66,7 +67,7 @@ func getSvnLog(entries int) (Log, os.Error) {
 		return svnlog, err
 	}
 	buffer := bytes.NewBuffer(b)
-	xml.Unmarshal(buffer, &svnlog)
+	xml.NewDecoder(buffer).Decode(&svnlog)
 	return svnlog, nil
 }
 
@@ -139,9 +140,9 @@ func generateNick(name string) string {
 
 // Find the name and email based on a nick name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
-func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
+func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 	var bval []byte
-	tokerror := os.NewError("Out of tokens")
+	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
 	for {
@@ -215,11 +216,10 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, os.Error) {
 	return "", tokerror
 }
 
-
 // Find the name from an ArchLinux related list of people and nicks
-func nickToNameFromListBox(nick string, url string) (string, os.Error) {
+func nickToNameFromListBox(nick string, url string) (string, error) {
 	var bval []byte
-	tokerror := os.NewError("Out of tokens")
+	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
 	for {
@@ -248,9 +248,9 @@ func nickToNameFromListBox(nick string, url string) (string, os.Error) {
 
 // Find the email based on a name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
-func nameToEmailWithUrl(fullname string, url string) (string, os.Error) {
+func nameToEmailWithUrl(fullname string, url string) (string, error) {
 	var bval []byte
-	tokerror := os.NewError("Out of tokens")
+	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
 	for {
@@ -275,7 +275,7 @@ func nameToEmailWithUrl(fullname string, url string) (string, os.Error) {
 			bval = tokenizer.Text()
 			name := bytes.NewBuffer(bval).String()
 			// Check if this is the one we're looking for or skip
-			if (strings.ToLower(name) != strings.ToLower(fullname)) {
+			if strings.ToLower(name) != strings.ToLower(fullname) {
 				// Skipping this person if names doesn't match
 				continue
 			}
@@ -425,7 +425,7 @@ func outputLog(n int) {
 				// Output in reverse order
 				last := len(msgitems) - 1
 				for i, _ := range msgitems {
-					fmt.Println(msgitems[last - i])
+					fmt.Println(msgitems[last-i])
 				}
 				// Clear the gathered messages
 				msgitems = []string{}
@@ -443,7 +443,7 @@ func outputLog(n int) {
 		// Output in reverse order
 		last := len(msgitems) - 1
 		for i, _ := range msgitems {
-			fmt.Println(msgitems[last - i])
+			fmt.Println(msgitems[last-i])
 		}
 		fmt.Println()
 	}
