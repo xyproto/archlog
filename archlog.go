@@ -3,8 +3,12 @@
  *
  * Alexander Rødseth <rodseth@gmail.com>
  *
+ * GPL2
+ *
  * 2012-01-14
  * 2012-01-29
+ * 2012-07-12
+ *
  */
 
 package main
@@ -12,10 +16,9 @@ package main
 import (
 	"bytes"
 	"encoding/xml"
-	"errors" // os/exec for newer versions of Go
+	"errors"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"log"
 	"net/http"
@@ -23,10 +26,11 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"text/scanner"
 )
 
 const (
-	VERSION = "0.2"
+	VERSION = "0.3"
 	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
 	FEL_URL = "http://www.archlinux.org/fellows/"
@@ -77,29 +81,30 @@ func prettyDate(date string) string {
 }
 
 // Get the contents from an URL and return a tokenizer and a ReadCloser
-func getWebPageTokenizer(url string) (*html.Tokenizer, io.ReadCloser) {
+func getWebPageTokenizer(url string) (*scanner.Scanner, io.ReadCloser) {
 	var client http.Client
 	resp, err := client.Get(url)
 	if err != nil {
 		log.Println("Could not retrieve " + url)
 		return nil, nil
 	}
-	tokenizer := html.NewTokenizer(resp.Body)
-	return tokenizer, resp.Body
+	var tokenizer scanner.Scanner
+	tokenizer.Init(resp.Body)
+	return &tokenizer, resp.Body
 }
 
 // Skip N tokens, if possible. Returns true if it worked out.
-func Skip(tokenizer *html.Tokenizer, n int) bool {
+func Skip(tokenizer *scanner.Scanner, n int) bool {
 	for counter := 0; counter < n; counter++ {
 		toktype := tokenizer.Next()
-		if toktype == html.ErrorToken {
+		if toktype == scanner.EOF {
 			return false
 		}
 	}
 	return true
 }
 
-func mapLetters(letter int) int {
+func mapLetters(letter rune) rune {
 	if ((letter >= 'A') && (letter <= 'Z')) || ((letter >= 'a') && (letter <= 'z')) {
 		return letter
 	}
@@ -141,7 +146,6 @@ func generateNick(name string) string {
 // Find the name and email based on a nick name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
 func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
-	var bval []byte
 	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
@@ -149,8 +153,7 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 		if !Skip(tokenizer, 1) {
 			return "", tokerror
 		}
-		bval, _ = tokenizer.TagName()
-		tagname := bytes.NewBuffer(bval).String()
+		tagname := tokenizer.TokenText()
 		if tagname == "a" {
 			// Find Name
 			text := ""
@@ -158,28 +161,24 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			name := bytes.NewBuffer(bval).String()
+			name := tokenizer.TokenText()
 			// Find Alias
 			text = ""
 			for text != "Alias:" {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			alias := bytes.NewBuffer(bval).String()
+			alias := tokenizer.TokenText()
 			// Is there a space in the alias?
 			if strings.Index(alias, " ") != -1 {
 				// Split into two substrings, then only use the first part
@@ -195,14 +194,12 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			email := bytes.NewBuffer(bval).String()
+			email := tokenizer.TokenText()
 			// If there's no "@" in the email, replace the first "." with "@"
 			if strings.Index(email, "@") == -1 {
 				if strings.Count(email, ".") > 1 {
@@ -218,7 +215,6 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 
 // Find the name from an ArchLinux related list of people and nicks
 func nickToNameFromListBox(nick string, url string) (string, error) {
-	var bval []byte
 	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
@@ -226,20 +222,17 @@ func nickToNameFromListBox(nick string, url string) (string, error) {
 		if !Skip(tokenizer, 1) {
 			return "", tokerror
 		}
-		bval, _ = tokenizer.TagName()
-		tagname := bytes.NewBuffer(bval).String()
+		tagname := tokenizer.TokenText() // TagName()
 		if tagname == "option" {
 			// Find Nick			
-			_, bval, _ = tokenizer.TagAttr()
-			foundnick := bytes.NewBuffer(bval).String()
+			foundnick := tokenizer.TokenText() // TagAttr()
 			if nick != foundnick {
 				continue
 			}
 			if !Skip(tokenizer, 1) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			name := bytes.NewBuffer(bval).String()
+			name := tokenizer.TokenText()
 			return name, nil
 		}
 	}
@@ -249,7 +242,6 @@ func nickToNameFromListBox(nick string, url string) (string, error) {
 // Find the email based on a name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
 func nameToEmailWithUrl(fullname string, url string) (string, error) {
-	var bval []byte
 	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
@@ -257,8 +249,7 @@ func nameToEmailWithUrl(fullname string, url string) (string, error) {
 		if !Skip(tokenizer, 1) {
 			return "", tokerror
 		}
-		bval, _ = tokenizer.TagName()
-		tagname := bytes.NewBuffer(bval).String()
+		tagname := tokenizer.TokenText() // TagName?
 		if tagname == "a" {
 			// Find Name
 			text := ""
@@ -266,14 +257,12 @@ func nameToEmailWithUrl(fullname string, url string) (string, error) {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			name := bytes.NewBuffer(bval).String()
+			name := tokenizer.TokenText()
 			// Check if this is the one we're looking for or skip
 			if strings.ToLower(name) != strings.ToLower(fullname) {
 				// Skipping this person if names doesn't match
@@ -285,13 +274,12 @@ func nameToEmailWithUrl(fullname string, url string) (string, error) {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
+			_ = tokenizer.TokenText()
 			//alias := bytes.NewBuffer(bval).String()
 			// Find Email
 			text = ""
@@ -299,14 +287,12 @@ func nameToEmailWithUrl(fullname string, url string) (string, error) {
 				if !Skip(tokenizer, 1) {
 					return "", tokerror
 				}
-				bval = tokenizer.Text()
-				text = bytes.NewBuffer(bval).String()
+				text = tokenizer.TokenText()
 			}
 			if !Skip(tokenizer, 4) {
 				return "", tokerror
 			}
-			bval = tokenizer.Text()
-			email := bytes.NewBuffer(bval).String()
+			email := tokenizer.TokenText()
 			// If there's no "@" in the email, replace the first "." with "@"
 			if strings.Index(email, "@") == -1 {
 				if strings.Count(email, ".") > 1 {
