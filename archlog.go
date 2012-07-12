@@ -72,6 +72,7 @@ func getSvnLog(entries int) (Log, error) {
 	}
 	buffer := bytes.NewBuffer(b)
 	xml.NewDecoder(buffer).Decode(&svnlog)
+	fmt.Println("got svnlog:", svnlog)
 	return svnlog, nil
 }
 
@@ -90,6 +91,7 @@ func getWebPageTokenizer(url string) (*scanner.Scanner, io.ReadCloser) {
 	}
 	var tokenizer scanner.Scanner
 	tokenizer.Init(resp.Body)
+	fmt.Println("hi")
 	return &tokenizer, resp.Body
 }
 
@@ -104,7 +106,7 @@ func Skip(tokenizer *scanner.Scanner, n int) bool {
 	return true
 }
 
-func mapLetters(letter rune) rune {
+func mapRunes(letter rune) rune {
 	if ((letter >= 'A') && (letter <= 'Z')) || ((letter >= 'a') && (letter <= 'z')) {
 		return letter
 	}
@@ -139,7 +141,7 @@ func generateNick(name string) string {
 		names = strings.SplitN(name, " ", -1)
 	}
 	firstname, lastname := names[0], names[len(names)-1]
-	nick := strings.Replace(strings.ToLower(strings.Map(mapLetters, string(firstname[0])+lastname)), "_", "", -1)
+	nick := strings.Replace(strings.ToLower(strings.Map(mapRunes, string(firstname[0])+lastname)), "_", "", -1)
 	return nick
 }
 
@@ -149,11 +151,13 @@ func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
 	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
+	fmt.Println("nick to name:", nick);
 	for {
 		if !Skip(tokenizer, 1) {
 			return "", tokerror
 		}
 		tagname := tokenizer.TokenText()
+		fmt.Println("tagname:", tagname)
 		if tagname == "a" {
 			// Find Name
 			text := ""
@@ -371,6 +375,7 @@ func abs(x int) int {
 
 // Output the N last svn log entries in the style of a ChangeLog
 func outputLog(n int) {
+	fmt.Println("outputLog", n)
 	first := true
 	msgitems := make([]string, 0, abs(n))
 	leadStar := "    * "
@@ -380,7 +385,9 @@ func outputLog(n int) {
 		os.Exit(1)
 	}
 	var date, prevdate, name, prevname, msg, prevheader, header string
+	fmt.Println("OSTOST")
 	for _, logentry := range svnlog.LogEntry {
+		fmt.Println("First logentry")
 		date = prettyDate(logentry.Date)
 		name = nickToNameAndEmail(logentry.Author)
 		msg = strings.TrimSpace(logentry.Msg)
@@ -436,6 +443,8 @@ func outputLog(n int) {
 }
 
 func main() {
+	fmt.Println("hi")
+
 	version_text := "svnchangelog " + VERSION
 	help_text := "this brief help"
 
