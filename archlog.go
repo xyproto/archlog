@@ -10,7 +10,6 @@
  * 2012-07-12
  * 2013-08-22
  *
- * TODO: Fix the nickToNameAndEmailWithUrl function
  *
  */
 

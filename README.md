@@ -1,11 +1,8 @@
 A utility for generating a ChangeLog based on the last N elements in
 the svn log.
 
-Tailored specifically for use on Arch Linux package repositories.
+Example use:
 
-Currently compiles with gccgo, but not with the latest version of Go, since the html package was removed.
+```archlog 5```
 
-
-TODO
-====
-* Rewrite so that it compiles with the latest version of Go
+GPL2
