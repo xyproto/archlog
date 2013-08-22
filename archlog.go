@@ -8,13 +8,15 @@
  * 2012-01-14
  * 2012-01-29
  * 2012-07-12
+ * 2013-08-22
+ *
+ * TODO: Fix the nickToNameAndEmailWithUrl function
  *
  */
 
 package main
 
 import (
-	"bytes"
 	"encoding/xml"
 	"errors"
 	"flag"
@@ -30,7 +32,7 @@ import (
 )
 
 const (
-	VERSION = "0.3"
+	VERSION = "0.4"
 	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
 	FEL_URL = "http://www.archlinux.org/fellows/"
@@ -43,21 +45,20 @@ var (
 
 // Used when parsing svn log xml
 type LogEntry struct {
-	Revision string `xml:"attr"`
-	Author   string
-	Date     string
-	Msg      string
+	Revision string `xml:"revision,attr"`
+	Author   string `xml:"author"`
+	Date     string `xml:"date"`
+	Msg      string `xml:"msg"`
 }
 
 // Used when parsing svn log xml
-type Log struct {
-	XMLName  xml.Name `xml:"log"`
-	LogEntry []LogEntry
+type LogEntries struct {
+	XMLName  xml.Name   `xml:"log"`
+	LogEntry []LogEntry `xml:"logentry"`
 }
 
-// Use the "svn log --xml" command to fetch log entries
-func getSvnLog(entries int) (Log, error) {
-	svnlog := Log{LogEntry: nil}
+// Get the xvn log xml output as an array of bytes
+func getSvnLogXMLbytes(entries int) ([]byte, error) {
 	var cmd *exec.Cmd
 	if entries == -1 {
 		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0")
@@ -68,12 +69,25 @@ func getSvnLog(entries int) (Log, error) {
 	b, err := cmd.Output()
 	if err != nil {
 		// Return an error
-		return svnlog, err
+		return []byte{}, err
 	}
-	buffer := bytes.NewBuffer(b)
-	xml.NewDecoder(buffer).Decode(&svnlog)
-	fmt.Println("got svnlog:", svnlog)
-	return svnlog, nil
+	return b, nil
+}
+
+// Use the "svn log --xml" command to fetch log entries
+func getSvnLog(entries int) (LogEntries, error) {
+	xmlbytes, err := getSvnLogXMLbytes(entries)
+
+	//fmt.Println(string(xmlbytes))
+
+	result := LogEntries{}
+	err = xml.Unmarshal(xmlbytes, &result)
+	if err != nil {
+		fmt.Printf("error: %v", err)
+		return LogEntries{}, nil
+	}
+
+	return result, nil
 }
 
 // Make a date from the xml version of svn log somewhat prettier
@@ -91,7 +105,6 @@ func getWebPageTokenizer(url string) (*scanner.Scanner, io.ReadCloser) {
 	}
 	var tokenizer scanner.Scanner
 	tokenizer.Init(resp.Body)
-	fmt.Println("hi")
 	return &tokenizer, resp.Body
 }
 
@@ -106,6 +119,7 @@ func Skip(tokenizer *scanner.Scanner, n int) bool {
 	return true
 }
 
+// TODO: Find a better way
 func mapRunes(letter rune) rune {
 	if ((letter >= 'A') && (letter <= 'Z')) || ((letter >= 'a') && (letter <= 'z')) {
 		return letter
@@ -148,10 +162,11 @@ func generateNick(name string) string {
 // Find the name and email based on a nick name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
 func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
+	return nick, nil
 	tokerror := errors.New("Out of tokens")
 	tokenizer, body := getWebPageTokenizer(url)
 	defer body.Close()
-	fmt.Println("nick to name:", nick);
+	fmt.Println("nick to name:", nick)
 	for {
 		if !Skip(tokenizer, 1) {
 			return "", tokerror
@@ -228,7 +243,7 @@ func nickToNameFromListBox(nick string, url string) (string, error) {
 		}
 		tagname := tokenizer.TokenText() // TagName()
 		if tagname == "option" {
-			// Find Nick			
+			// Find Nick
 			foundnick := tokenizer.TokenText() // TagAttr()
 			if nick != foundnick {
 				continue
@@ -361,7 +376,7 @@ func nickToNameAndEmail(nick string) string {
 		nickCache[nick] = nameEmail
 		return nameEmail
 	}
-	// Could not get name and email from nick	
+	// Could not get name and email from nick
 	nickCache[nick] = nick
 	return nick
 }
@@ -375,7 +390,6 @@ func abs(x int) int {
 
 // Output the N last svn log entries in the style of a ChangeLog
 func outputLog(n int) {
-	fmt.Println("outputLog", n)
 	first := true
 	msgitems := make([]string, 0, abs(n))
 	leadStar := "    * "
@@ -385,9 +399,7 @@ func outputLog(n int) {
 		os.Exit(1)
 	}
 	var date, prevdate, name, prevname, msg, prevheader, header string
-	fmt.Println("OSTOST")
 	for _, logentry := range svnlog.LogEntry {
-		fmt.Println("First logentry")
 		date = prettyDate(logentry.Date)
 		name = nickToNameAndEmail(logentry.Author)
 		msg = strings.TrimSpace(logentry.Msg)
@@ -443,8 +455,6 @@ func outputLog(n int) {
 }
 
 func main() {
-	fmt.Println("hi")
-
 	version_text := "svnchangelog " + VERSION
 	help_text := "this brief help"
 
