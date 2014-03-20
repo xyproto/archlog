@@ -1,5 +1,5 @@
 /*
- * Program for generating a ChangeLog based on svn log
+ * Program for generating a ChangeLog based on svn log.
  *
  * Alexander Rødseth <rodseth@gmail.com>
  *
@@ -9,7 +9,7 @@
  * 2012-01-29
  * 2012-07-12
  * 2013-08-22
- *
+ * 2014-03-20
  *
  */
 
@@ -28,18 +28,15 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
+	"io/ioutil"
 )
 
 const (
-	VERSION = "0.4"
+	VERSION = "0.5"
 	TU_URL  = "http://www.archlinux.org/trustedusers/"
 	DEV_URL = "http://www.archlinux.org/developers/"
 	FEL_URL = "http://www.archlinux.org/fellows/"
 	PKG_URL = "http://www.archlinux.org/packages/"
-)
-
-var (
-	nickCache map[string]string
 )
 
 // Used when parsing svn log xml
@@ -56,14 +53,20 @@ type LogEntries struct {
 	LogEntry []LogEntry `xml:"logentry"`
 }
 
+var (
+	nickCache map[string]string
+)
+
 // Get the xvn log xml output as an array of bytes
 func getSvnLogXMLbytes(entries int) ([]byte, error) {
 	var cmd *exec.Cmd
 	if entries == -1 {
+		// Get the entries in reverse order by asking for revisions from HEAD to 0
 		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0")
 	} else {
 		entriesText := fmt.Sprintf("%v", entries)
-		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0", "-l", entriesText)
+		// Get the entries in reverse order by asking for revisions from HEAD to 0
+		cmd = exec.Command("/usr/bin/svn", "log", "--xml", "-r", "HEAD:0", "--limit", entriesText)
 	}
 	b, err := cmd.Output()
 	if err != nil {
@@ -161,74 +164,57 @@ func generateNick(name string) string {
 // Find the name and email based on a nick name and an URL to an
 // ArchLinux related list of people, formatted in a particular way.
 func nickToNameAndEmailWithUrl(nick string, url string) (string, error) {
-	return nick, nil
-	tokerror := errors.New("Out of tokens")
-	tokenizer, body := getWebPageTokenizer(url)
-	defer body.Close()
-	fmt.Println("nick to name:", nick)
-	for {
-		if !Skip(tokenizer, 1) {
-			return "", tokerror
+	var client http.Client
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	name := ""
+	email := ""
+	counter := 0
+	email_index := -1
+	found := false
+	for i, tag := range strings.Split(string(b), "<") {
+		if strings.Contains(tag, "schema.org/Person") {
+			name = ""
+			email = ""
+			counter = 30 // Examine the next 30 tags
 		}
-		tagname := tokenizer.TokenText()
-		fmt.Println("tagname:", tagname)
-		if tagname == "a" {
-			// Find Name
-			text := ""
-			for text != "Name:" {
-				if !Skip(tokenizer, 1) {
-					return "", tokerror
-				}
-				text = tokenizer.TokenText()
-			}
-			if !Skip(tokenizer, 4) {
-				return "", tokerror
-			}
-			name := tokenizer.TokenText()
-			// Find Alias
-			text = ""
-			for text != "Alias:" {
-				if !Skip(tokenizer, 1) {
-					return "", tokerror
-				}
-				text = tokenizer.TokenText()
-			}
-			if !Skip(tokenizer, 4) {
-				return "", tokerror
-			}
-			alias := tokenizer.TokenText()
-			// Is there a space in the alias?
-			if strings.Index(alias, " ") != -1 {
-				// Split into two substrings, then only use the first part
-				alias = strings.SplitN(alias, " ", 2)[0]
-			}
-			if (strings.ToLower(alias) != strings.ToLower(nick)) && (nick != generateNick(name)) {
-				// Skipping this person if alias and nick doesn't match
-				continue
-			}
-			// Find Email
-			text = ""
-			for text != "Email:" {
-				if !Skip(tokenizer, 1) {
-					return "", tokerror
-				}
-				text = tokenizer.TokenText()
-			}
-			if !Skip(tokenizer, 4) {
-				return "", tokerror
-			}
-			email := tokenizer.TokenText()
-			// If there's no "@" in the email, replace the first "." with "@"
-			if strings.Index(email, "@") == -1 {
-				if strings.Count(email, ".") > 1 {
+		if counter > 0 {
+			if strings.Contains(tag, "itemprop=\"name") && !strings.Contains(tag, "Arch Linux") {
+				name = strings.Split(tag, "\"")[3]
+			} else if strings.Contains(tag, nick) {
+				found = true
+			} else if strings.Contains(tag, "Email") {
+				email_index = i + 2
+			} else if i == email_index {
+				email = strings.Split(tag, ">")[1]
+				// If there's no "@" in the email, replace the first "." with "@"
+				if !strings.Contains(email, "@") && strings.Contains(email, ".") {
 					email = strings.Replace(email, ".", "@", 1)
 				}
+				if found {
+					break
+				}
 			}
-			// Format the name and email nicely, then return
-			return fmt.Sprintf("%s <%s>", name, email), nil
+			counter--
 		}
 	}
-	return "", tokerror
+	if found {
+		//fmt.Println("FOUND!")
+		//fmt.Println("NICK", nick)
+		//fmt.Println("EMAIL", email)
+		//fmt.Println("NAME", name)
+		// Format the name and email nicely, then return
+		return fmt.Sprintf("%s <%s>", name, email), nil
+	}
+	return "", errors.New("Could not find nick")
 }
 
 // Find the name from an ArchLinux related list of people and nicks
@@ -421,11 +407,9 @@ func outputLog(n int) {
 				// Don't start with a blank line first time
 				if "" != prevdate {
 					if !first {
-						fmt.Println()
+						//fmt.Println()
 					}
 				}
-				// Output header
-				fmt.Println(prevheader)
 				// Output in reverse order
 				last := len(msgitems) - 1
 				for i, _ := range msgitems {
@@ -435,6 +419,12 @@ func outputLog(n int) {
 				msgitems = []string{}
 				first = false
 			}
+		}
+		// Output a new header if it changes
+		if !first && (header != prevheader) {
+			fmt.Println("\n" + header)
+		} else if first && (header != prevheader) {
+			fmt.Println(header)
 		}
 		// Gather message
 		msgitems = append(msgitems, msg)
@@ -454,7 +444,7 @@ func outputLog(n int) {
 }
 
 func main() {
-	version_text := "svnchangelog " + VERSION
+	version_text := "archlog " + VERSION
 	help_text := "this brief help"
 
 	flag.Usage = func() {
@@ -463,14 +453,14 @@ func main() {
 		fmt.Println("Tries to find names and e-mail addresses for Arch Linux related usernames")
 		fmt.Println()
 		fmt.Println("Syntax:")
-		fmt.Println("\tsvnchangelog [n]")
+		fmt.Println("\tarchlog [n]")
 		fmt.Println()
 		fmt.Println("Arguments:")
 		fmt.Println("\tn - the number of entries to fetch from the log")
 		fmt.Println()
 		fmt.Println("Examples:")
-		fmt.Println("\tsvnchangelog")
-		fmt.Println("\tsvnchangelog 10")
+		fmt.Println("\tarchlog")
+		fmt.Println("\tarchlog 10")
 		fmt.Println()
 	}
 	var missing_args = func() {
