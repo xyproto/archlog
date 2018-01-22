@@ -5,7 +5,6 @@ Utility that generates a ChangeLog based on the last N elements in the svn log.
 
 Think of it as a "svn log" to "changelog" conversion utility.
 
-
 Example use:
 
 ```archlog 2```
@@ -20,4 +19,4 @@ Example output:
 ```
 
 * License: GPL2
-* Author: Alexander Rødseth <rodseth@gmail.com>
+* Author: Alexander F Rødseth <xyproto@archlinux.org>

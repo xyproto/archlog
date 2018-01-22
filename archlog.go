@@ -1,7 +1,8 @@
 /*
  * Program for generating a ChangeLog based on svn log.
+ * For Arch Linux package repositories.
  *
- * Alexander Rødseth <rodseth@gmail.com>
+ * Alexander F Rødseth <xyproto@archlinux.org>
  *
  * GPL2
  *
@@ -10,6 +11,7 @@
  * 2012-07-12
  * 2013-08-22
  * 2014-03-20
+ * 2018-01-22
  *
  */
 
@@ -21,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -28,15 +31,14 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
-	"io/ioutil"
 )
 
 const (
-	VERSION = "0.5"
-	TU_URL  = "http://www.archlinux.org/trustedusers/"
-	DEV_URL = "http://www.archlinux.org/developers/"
-	FEL_URL = "http://www.archlinux.org/fellows/"
-	PKG_URL = "http://www.archlinux.org/packages/"
+	VERSION = "0.7"
+	TU_URL  = "https://www.archlinux.org/people/trusted-users/"
+	DEV_URL = "https://www.archlinux.org/people/developers/"
+	FEL_URL = "https://www.archlinux.org/people/developer-fellows/"
+	PKG_URL = "https://www.archlinux.org/packages/"
 )
 
 // Used when parsing svn log xml
@@ -71,7 +73,7 @@ func getSvnLogXMLbytes(entries int) ([]byte, error) {
 	b, err := cmd.Output()
 	if err != nil {
 		// Return an error
-		return []byte{}, err
+		return []byte{}, fmt.Errorf("Error running: %s (%s)", strings.Join(cmd.Args, " "), err.Error())
 	}
 	return b, nil
 }
@@ -79,13 +81,17 @@ func getSvnLogXMLbytes(entries int) ([]byte, error) {
 // Use the "svn log --xml" command to fetch log entries
 func getSvnLog(entries int) (LogEntries, error) {
 	xmlbytes, err := getSvnLogXMLbytes(entries)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	//fmt.Println(string(xmlbytes))
 
 	result := LogEntries{}
 	err = xml.Unmarshal(xmlbytes, &result)
 	if err != nil {
-		fmt.Printf("error: %v", err)
+		fmt.Println("Warning: " + err.Error())
 		return LogEntries{}, nil
 	}
 
@@ -138,7 +144,6 @@ func mapRunes(letter rune) rune {
 	default:
 		return '_'
 	}
-	return letter
 }
 
 // Generates a nick from the name
@@ -240,7 +245,6 @@ func nickToNameFromListBox(nick string, url string) (string, error) {
 			return name, nil
 		}
 	}
-	return "", tokerror
 }
 
 // Find the email based on a name and an URL to an
@@ -307,7 +311,6 @@ func nameToEmailWithUrl(fullname string, url string) (string, error) {
 			return email, nil
 		}
 	}
-	return "", tokerror
 }
 
 func nickToNameAndEmail(nick string) string {

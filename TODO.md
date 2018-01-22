@@ -1,6 +1,6 @@
 == TODO ==
 
-* If archlog is called as "svntoday", only list log entries for the last 24 hours
+* If archlog is executed as `svntoday` (arg 0), only list log entries for the last 24 hours
 * A filename can be given with -f (or a filename without -f and -n and -10 for the number)
 
 
