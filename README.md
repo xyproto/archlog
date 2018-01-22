@@ -1,15 +1,17 @@
-archlog
+ArchLog
 =======
 
-Utility that generates a ChangeLog based on the last N elements in the svn log.
+A small utility for generating a ChangeLog based on the last N elements in the svn log.
 
 Think of it as a "svn log" to "changelog" conversion utility.
 
-Example use:
+### Example use
+
+Command:
 
 ```archlog 2```
 
-Example output:
+Output:
 
 ```
 2014-03-17 arodseth
@@ -18,5 +20,8 @@ Example output:
     * upgpkg: python-cx_freeze 4.3.2-1
 ```
 
+### General info
+
+* Version 0.7
 * License: GPL2
-* Author: Alexander F Rødseth <xyproto@archlinux.org>
+* Author: Alexander F Rødseth &lt;xyproto@archlinux.org&gt;
